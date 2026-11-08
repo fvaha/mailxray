@@ -2,9 +2,9 @@
 
 **Structural inspection of untrusted mail attachments — without opening them.**
 
-mailxray takes one attachment, says what it really is, what is inside it, and
-whether it should reach a user's mailbox. It never executes anything, never
-renders anything, and needs no signature database.
+Give it one attachment; it tells you what the bytes really are, what is inside
+them, and whether they should reach a mailbox. No execution, no rendering, no
+signature database, no mail access.
 
 ```
 $ curl -s -X POST --data-binary @attach.zip 'localhost:8377/inspect?name=attach.zip'
@@ -31,161 +31,310 @@ $ curl -s -X POST --data-binary @attach.zip 'localhost:8377/inspect?name=attach.
 
 ---
 
-## Why this exists
+## What it does, exactly
 
-Mail-borne infection is a *delivery* problem, not a payload problem. Look at what
-actually arrives: archives and scripts, almost never a bare executable.
+Two jobs, four endpoints. Nothing else.
 
-| Attachment type | Share of malicious attachments |
+| Endpoint | Input | Output | What it is for |
+|---|---|---|---|
+| `POST /inspect?name=` | attachment bytes | JSON report | "what is this, what is inside it, is it dangerous" |
+| `POST /entry?path=` | archive bytes + member path | that member's bytes | showing one file inside an archive, without handing over the archive |
+| `GET /report/{blake3}` | — | cached JSON report | the webmail drawing a card later, without re-uploading |
+| `GET /health` | — | status, version, sandbox mode | monitoring |
+
+### Per format
+
+| Format | What the report contains |
 |---|---|
-| ZIP | ~25% |
-| PDF | ~13% |
-| HTML | ~11% |
-| RAR | ~8% |
-| 7z | ~6% |
+| **ZIP, tar, gzip** | every entry: name, real type, size, compression ratio, per-entry verdict; nesting up to `max_depth`; zip-bomb and path-traversal detection |
+| **RAR, 7z** | the same tree, produced by 7-Zip running inside the sandbox |
+| **bzip2, xz, zstd** | recognised; single-stream, so there is no tree (reported as such, not guessed) |
+| **PDF** | page count, `/OpenAction`, `/AA`, `/Launch`, JavaScript actions with a snippet, embedded files, XFA, RichMedia, SubmitForm, link targets and their hosts — plus a deep pass that decompresses every stream and looks for the same markers hidden there |
+| **DOCX / XLSX / PPTX** | VBA macro project present, external relationships (remote template / DDE), embedded OLE objects |
+| **DOC / XLS / PPT (OLE2)** | VBA project, embedded objects, stream names |
+| **PE / ELF / Mach-O / ISO / LNK / scripts** | refused on sight — and reported as such, whatever the filename claims |
+| **HTML / SVG** | identified as executable-class content, because they run in a browser |
 
-<sub>Order of magnitude from public phishing-trend reporting; the exact split
-moves month to month.</sub>
+Every report also carries BLAKE3 and SHA-256 of the decoded bytes, the declared
+extension, the real type, and a `type_mismatch` flag when they disagree.
 
-An antivirus answers "is this file known-bad?" — and answers it late, expensively
-(around 1 GB of RAM for a signature database) and, against a fresh payload, often
-wrongly. But the user facing the attachment has a much simpler question:
+### Verdicts
 
-> What *is* this, what is *inside* it, and is it dangerous to touch?
+`clean` · `suspicious` · `blocked` · `partial` — with `reasons[]`, each carrying
+a machine-readable `code`, a human `detail` and a `severity`. The verdict is the
+highest severity present.
 
-That question is answerable in **milliseconds** from the bytes alone. That is
-what mailxray does.
+**The invariant:** a file that was not fully inspected is never reported `clean`.
+Caps and budgets produce `partial` or `suspicious` with a reason attached.
 
-Three concrete wins:
-
-1. **`invoice.pdf.exe` never gets clicked.** The effective type is decided by
-   magic bytes, and the mismatch with the declared extension is reported.
-2. **`attachment.zip` is shown as a tree**, not a mystery box: names, real types,
-   sizes, compression ratios and a verdict per entry — including one level of
-   nesting.
-3. **`statement.pdf` with `/OpenAction` + JavaScript** is caught before a browser
-   ever parses it, including when the JavaScript is hidden inside a compressed
-   stream or behind a name escape (`/Ja#76aScript`).
-
----
-
-## What it inspects
-
-| Format | What you get |
-|---|---|
-| **ZIP, tar, gzip** | full entry tree, per-entry verdicts, nesting up to `max_depth`, path-traversal and zip-bomb detection |
-| **RAR, 7z** | full entry tree via 7-Zip, run inside the tier 1 sandbox (no network, read-only system, wall-clock timeout) |
-| **bzip2, xz, zstd** | recognised by magic; single-stream formats, so there is no tree to list |
-| **PDF** | pages, `/OpenAction`, `/AA`, `/Launch`, JavaScript (with a snippet of the code), embedded files, XFA, RichMedia, SubmitForm, link targets and their hosts — plus a **deep pass** that decompresses every stream and searches it for hidden active content |
-| **DOCX / XLSX / PPTX** | VBA macro project, external relationships (remote template injection / DDE), embedded OLE objects |
-| **DOC / XLS / PPT (OLE2)** | VBA project, embedded objects, stream list |
-| **PE / ELF / Mach-O / ISO / LNK / scripts** | refused on sight, whatever the filename says |
-| **HTML / SVG** | recognised as executable-class content (they run in a browser, not in yours) |
-
-Every report carries BLAKE3 + SHA-256, the declared extension, the real type and
-a `type_mismatch` flag.
-
----
-
-## What it deliberately does **not** do
-
-This is a design position, not a missing feature.
+### What it deliberately does **not** do
 
 - **No rendering.** No thumbnails, no page images, no LibreOffice, no PDFium, no
-  headless browser. Rendering untrusted documents is where the 0-days live, and
-  it costs 100–800 ms and 26–150 MB per file. A PDF preview belongs to the
-  browser, served from an isolated origin; an Office document is shown as
-  structure + verdict + a deliberate download. Only archives are displayed in
-  detail, because a tree is what a user actually needs to decide.
-- **No signature database.** No ClamAV, no YARA. Those answer a different
-  question; see [Roadmap](#roadmap) for how they compose.
-- **No mail access.** mailxrayd never fetches mail and holds no credentials. It
-  receives one attachment and returns one report.
-- **No network.** Ever.
+  headless browser. Rendering untrusted documents is where the 0-days live and
+  costs 100–800 ms / 26–150 MB per file. A PDF preview belongs to the browser,
+  served from an isolated origin; Office is structure + verdict + deliberate
+  download. Only archives are shown in detail, because a tree is what a user
+  needs to decide.
+- **No signature database.** Not an antivirus; see [Roadmap](#roadmap).
+- **No mail access.** It never fetches mail and holds no credentials.
+- **No network** from anything it runs.
 
 ---
 
-## How it works
+## How it plugs into a real mail setup
+
+Three shapes. A: webmail only (fastest to adopt). B: mail server at SMTP time
+(the strongest). C: library embedded in your own milter (no HTTP hop).
 
 ```
-                      ┌──────────────────────────────┐
-  attachment bytes ──▶│ magic-byte type detection    │
-                      └──────────────┬───────────────┘
-                                     │
-        ┌────────────┬───────────────┼──────────────┬─────────────┐
-        ▼            ▼               ▼              ▼             ▼
-      archive       PDF            OOXML          OLE2       executable
-   (zip/tar/gz)  (object        (zip + xml)      (cfb)       → refused
-                  graph +
-                  streams)
-        └────────────┴───────────────┴──────────────┴─────────────┘
-                                     │
-                             ┌───────▼─────────┐
-                             │ policy: verdict  │  clean / suspicious / blocked
-                             └───────┬──────────┘
-                                     │
-                       content-addressed report (BLAKE3)
+  A. webmail only                    B. mail server + webmail
+  ─────────────────                  ────────────────────────
+  user clicks an attachment          SMTP DATA ─▶ your milter ─▶ POST /inspect
+        │                                                   │
+        ▼                                                   ├─ blocked → reject 5.x
+  webmail backend ──▶ POST /inspect                         └─ ok → deliver
+        │                                                   user opens it later:
+        ├─ card (JSON → web/mailxray-card.js)               webmail backend ─▶ GET /report/{hash}
+        └─ user clicks "open"
+             └─▶ POST /entry ─▶ bytes of that one member
 ```
 
-Everything runs in-process with memory-safe parsers (`zip`, `cfb`, `lopdf` — no
-C, no FFI). Work is bounded everywhere: entry caps, decompression budgets,
-compression-ratio limits, recursion depth, object-walk budget.
+### A. Webmail: inspect on open, show a card, open a member
 
-### The invariant
+Recommended wiring: **the browser talks to your webmail backend, the backend
+talks to mailxrayd.** mailxrayd sends no CORS headers and has no authentication —
+it is meant to sit on loopback, behind the app that already knows who the user is.
 
-> **A file that was not fully inspected is never reported `clean`.**
+```js
+// in the webmail frontend, when the user expands an attachment panel
+const blob = await api.fetchAttachmentBlob(messageId, partId);   // your backend
+const report = await api.inspect(blob, name);                    // backend → POST /inspect
+panel.append(MailxrayCard.render(report, {
+  entryUrl: (member) => api.entryUrl(hash, member),              // isolated origin
+}));
+```
 
-Any cap that is hit produces `partial` or `suspicious` with the reason attached —
-never silence. A 400 MB PDF that could not be fully decompressed is reported as
-`pdf-partial-scan`, not as fine.
+The reference renderer is in this repository:
+
+```
+web/mailxray-card.js     MailxrayCard.render(report, { entryUrl }) -> HTMLElement
+web/mailxray-card.css
+web/demo.html            open next to a running daemon to see the output
+```
+
+It builds DOM nodes with `textContent` — no `innerHTML`, no `eval` — so a member
+named `<img src=x onerror=alert(1)>.zip` renders as text.
+
+For "open", the backend proxies `POST /entry` and returns the member from an
+**isolated origin** (e.g. `attach.example.com`, no cookies, `nosniff`), so a PDF
+exploit opening in the browser has nothing of the webmail to reach:
+
+```html
+<img src="https://attach.example.com/entry?hash=…&path=photo.png" alt="">
+<iframe src="https://attach.example.com/entry?hash=…&path=doc.pdf"></iframe>
+```
+
+`POST /entry` only returns inert members — image, PDF, text, audio, video,
+decided by magic bytes — so the wrapper can never be tricked into serving the
+executable that was sitting next to them in the archive.
+
+### B. Mail server: call it at SMTP time
+
+Anything that can make an HTTP request during `DATA` can use it. The filter is
+per message part: send each decoded attachment, collect verdicts, decide.
+
+**Stalwart** (the stack this was written for): define an `MtaMilter` and point it
+at a small milter of your own, which calls mailxrayd:
+
+```
+Settings › MTA › Filters › Milters → new
+  host    = 127.0.0.1
+  port    = 7357
+  stages  = ["data"]
+  tempFailOnError = true        # mailxrayd down → 451, never unfiltered delivery
+```
+
+**Postfix:** `smtpd_milters = inet:127.0.0.1:7357` plus the same milter.
+
+**Rspamd:** a custom Lua rule that POSTs to `/inspect` and adds a symbol.
+
+The milter itself is ~150 lines and not shipped yet (see [Roadmap](#roadmap));
+the shape is:
+
+```rust
+// at end-of-message: walk the MIME parts, send each one, act on the verdict
+for part in message.attachments() {
+    let report: Report = http.post("/inspect")
+        .query(&[("name", part.filename())])
+        .body(part.bytes())
+        .send().await?.json().await?;
+
+    if report.verdict == Verdict::Blocked {
+        return Status::Reject;   // 5.7.1, with the reason codes in the reply
+    }
+}
+```
+
+Two rules that matter at this stage:
+
+- **Fail closed.** If mailxrayd is unreachable, return `451` — a temporary
+  failure — rather than delivering uninspected mail.
+- **Inspect the decoded part**, not the wire form, so the `hash` you store is the
+  same one the webmail will compute later.
+
+### C. Embed the library
+
+The inspection engine is a plain Rust library, so a milter written in Rust can
+skip the HTTP hop entirely:
+
+```rust
+use mailxray_core::{inspect, Policy, Verdict};
+
+let report = inspect(Some("invoice.pdf"), &bytes, &Policy::default());
+if report.verdict == Verdict::Blocked {
+    return Status::Reject;
+}
+```
+
+Same structs, same reason codes, same JSON — the report serialises identically
+whether it came from the daemon or from a linked crate.
+
+### Why the report is content-addressed
+
+`hash` is BLAKE3 of the *decoded* bytes, and reports are stored as
+`<store>/<hash>.json`. So:
+
+- one attachment delivered to 100 recipients is inspected **once**;
+- the mail path can inspect at SMTP time and the webmail can later fetch the same
+  report with `GET /report/{hash}` — no second upload, no second parse;
+- for mail that predates the deployment, the webmail calls `POST /inspect` once
+  and the cache fills itself.
 
 ---
 
-## Sandboxing: what it is for, and what it costs
+## API
 
-mailxray is tier 0: it never runs another program, so it needs no sandbox. A
-sandbox becomes necessary the moment a *real* parser has to run on the bytes —
-`unrar`, `7zz`, `libarchive`, a document converter. Those are C/C++ programs
-parsing attacker-controlled input, and that is the part worth isolating.
+### `POST /inspect?name=<filename>`
 
-The design therefore has three tiers, and each format handler picks the cheapest
-one that can do its job:
+Body: raw decoded attachment bytes, up to 50 MB. Always answers `200` with a
+report — a parse failure is a report with `pdf-unparsed` / `zip-unparsed` / …
+and verdict `suspicious`, never a `500`.
+
+`name` is untrusted; it is used only to compare the declared extension with the
+content and to disambiguate text-ish files (`.js` is a script, not text).
+
+### `POST /entry?path=<member>`
+
+Body: the archive bytes the caller already has. Extracts **one** member.
+
+| Condition | Response |
+|---|---|
+| member is image / PDF / text / audio / video (by magic bytes) | `200`, concrete `Content-Type`, `nosniff`, `inline` |
+| member is anything else (`pe`, `zip`, `ole2`, …) | `415` |
+| member larger than 8 MB | `422` |
+| `path` empty, >1024 chars, absolute, leading `-`, containing `..`, `\` or NUL | `400` |
+| extraction failed | `422` |
+
+ZIP is extracted in-process; RAR/7z go through 7-Zip inside the sandbox. The
+daemon stores no archives — the caller supplies the bytes.
+
+### `GET /report/{blake3}`
+
+64 hex characters. `200` with the cached report, `400` for a malformed hash,
+`404` when unknown.
+
+### `GET /health`
+
+```json
+{"status":"ok","version":"0.2.0","schema":1,"sandbox":"Bwrap"}
+```
+
+`sandbox` is `Bwrap` or `Off` — worth alerting on if it silently degrades.
+
+Full field-by-field contract: **[SPEC.md](SPEC.md)**.
+
+---
+
+## Deploy
+
+```bash
+cargo build --release
+MAILXRAY_ADDR=127.0.0.1:8377 \
+MAILXRAY_STORE=/var/lib/mailxray \
+MAILXRAY_SANDBOX=bwrap \
+  ./target/release/mailxrayd
+```
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `MAILXRAY_ADDR` | `127.0.0.1:8377` | listen address; keep it on loopback |
+| `MAILXRAY_STORE` | `/var/lib/mailxray` | report cache, one JSON file per content hash |
+| `MAILXRAY_SANDBOX` | `auto` | `auto` uses bwrap if installed, `bwrap` requires it, `off` disables isolation |
+| `MAILXRAY_7Z` | probe | force a specific 7-Zip binary (`7zz`, `7z`, `7za` are probed) |
+
+Requirements: `bubblewrap` and 7-Zip (`p7zip-full` on Debian) for RAR/7z support.
+Neither is needed for ZIP, tar, gzip, PDF or Office.
+
+`/etc/systemd/system/mailxrayd.service`:
+
+```ini
+[Unit]
+Description=mailxray attachment inspection
+After=network.target
+
+[Service]
+ExecStart=/usr/local/bin/mailxrayd
+Environment=MAILXRAY_ADDR=127.0.0.1:8377
+Environment=MAILXRAY_STORE=/var/lib/mailxray
+Environment=MAILXRAY_SANDBOX=bwrap
+DynamicUser=yes
+StateDirectory=mailxray
+MemoryMax=256M
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+SystemCallFilter=@system-service
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Notes for a public-ish deployment: it has no auth and no TLS — put it behind the
+reverse proxy that terminates both, or keep it on loopback. `MemoryMax` caps the
+whole process tree, which includes the sandboxed 7-Zip children.
+
+---
+
+## Sandboxing
+
+mailxray is tier 0 by default: it runs no other program, so it needs no sandbox.
+Isolation starts the moment a real parser has to touch the bytes — 7-Zip for
+RAR/7z today, poppler or LibreOffice eventually. Those are C/C++ programs parsing
+attacker-controlled input, and that is the part worth confining.
 
 | Tier | Mechanism | Cost (measured) | Used for |
 |---|---|---|---|
-| **0** | in-process, memory-safe Rust parsers, bounded work | **0.2–2 ms**, 5–14 MB RSS | everything implemented today: ZIP, tar, gzip, PDF, OOXML, OLE2 |
-| **1** | `bwrap` (namespaces) + Landlock (filesystem) + seccomp + cgroup `MemoryMax` + wall-clock timeout | **+3 ms** (Landlock), **+8–10 ms** (bwrap), **~0 MB RSS** | **7-Zip: RAR/7z listing and single-member extraction (implemented)**; poppler, libarchive, LibreOffice later |
-| **2** | Firecracker microVM | **7.7 MB VMM RSS**, ~2.3 s boot | anything that renders or executes: LibreOffice, unknown binaries |
+| **0** | in-process memory-safe Rust parsers, bounded work | **0.2–2 ms**, 5–14 MB RSS | ZIP, tar, gzip, PDF, OOXML, OLE2 |
+| **1** | `bwrap` namespaces (user/mount/pid/net/ipc/uts) + wall-clock timeout + output cap, whole tree cgroup-capped by the unit's `MemoryMax` | **+8–10 ms**, **~0 MB RSS** | **7-Zip: RAR/7z listing and member extraction** |
+| **2** | Firecracker microVM | 7.7 MB VMM RSS, ~2.3 s boot | anything that renders or executes (not used yet) |
 
 <sub>Measured on Debian 13, kernel 6.12, Xeon E5-2620. A 20 000-iteration
 open/read/close/stat loop ran at 8.0–10.8 µs/op bare versus 7.9–9.9 µs/op inside
 bwrap — no measurable syscall cost. `MemoryMax=64M` against a 512 MB allocation
-exits 137 with `CONSTRAINT_MEMCG` in the kernel log; a 32 MB allocation passes.
-Unpacking 38 MB from a ZIP cost 51 MB RSS bare and 51–52 MB sandboxed.</sub>
+exits 137 with `CONSTRAINT_MEMCG` in the kernel log; 32 MB passes. Unpacking 38 MB
+from a ZIP cost 51 MB RSS bare and 51–52 MB sandboxed.</sub>
 
-The point of those numbers: **isolation is nearly free; what costs memory is the
-program you put inside it.** Landlock + seccomp + namespaces + cgroup add
-effectively zero RAM and zero syscall overhead. The 51 MB was Python's `zipfile`
-unpacking 38 MB — the parser's cost, not the sandbox's.
-
-Two rules for tier 1, as implemented in `crates/mailxrayd/src/sandbox.rs`:
-
-- **Limits are enforced from outside** (wall clock, output cap), never by the
-  tool's own configuration.
-- **Nothing is shared** with the handler: no network namespace, read-only system
-  binds, the archive bound read-only, one private writable work dir, and the
-  child dies with its parent.
-
-`MAILXRAY_SANDBOX=auto|bwrap|off` selects the mode; `auto` (the default) uses
-bwrap when it is installed and falls back to no isolation otherwise, with a
-startup line in the log saying which one is active. In production: keep it on
-bwrap, and put `MemoryMax=` on the systemd unit so the whole tree is cgroup-capped.
+What the sandboxed child gets, verified on a live host: no `/home` (the host
+filesystem is not mounted), no writable system paths, no listening sockets, and a
+network namespace containing only loopback. The archive is bound read-only, one
+private directory is writable, and the child is killed on timeout.
 
 ---
 
 ## Policy
-
-Defaults, all configurable:
 
 ```
 block_executables         true    # PE/ELF/Mach-O/ISO/LNK/scripts
@@ -200,7 +349,7 @@ deep_pdf                  true    # decompress streams looking for hidden conten
 max_pdf_decompress_bytes  64 MiB
 ```
 
-Refused extensions, regardless of content:
+Refused extensions regardless of content:
 
 ```
 exe dll ocx cpl scr pif sys drv com msi msp msix
@@ -210,62 +359,6 @@ docm dotm xlsm xltm pptm potm xlam
 jar apk chm
 ```
 
-The full list of reason codes and the JSON contract are in **[SPEC.md](SPEC.md)**.
-
----
-
-## Run it
-
-```bash
-cargo build --release
-MAILXRAY_ADDR=127.0.0.1:8377 MAILXRAY_STORE=/var/lib/mailxray \
-  ./target/release/mailxrayd
-```
-
-```
-POST /inspect?name=<filename>   body = raw attachment bytes (≤ 50 MB) → report
-POST /entry?path=<member>       body = raw archive bytes → one member (preview)
-GET  /report/{blake3}           cached report
-GET  /health
-```
-
-Reports are content-addressed by `blake3` of the *decoded* bytes, so an attachment
-delivered to 100 recipients is inspected once and the webmail can fetch its card
-without re-uploading anything.
-
-Typical cost: **0.2–2 ms** for archives, Office and shallow PDF; **~30–80 ms** for
-a multi-megabyte PDF with the deep stream pass — once per content hash. RAR/7z
-listing goes through 7-Zip in the sandbox: **~10 ms** of sandbox overhead on top
-of the tool's own run time.
-
-### `POST /entry` — opening one member
-
-The caller sends the archive bytes it already has (a webmail has the blob from
-its mail server), plus the member path. The daemon extracts **that one member**
-inside the tier 1 sandbox and returns it only if the bytes are inert — image,
-PDF, text, audio or video, decided by magic bytes rather than by the name. An
-`invoice.png` that is really a PE is refused with `415`. Members over 8 MB are
-refused, and the path is validated (`..`, absolute paths and a leading `-` are
-rejected before anything runs).
-
-That is what makes a preview wrapper possible without ever handing the original
-file to the client: the wrapper shows a rasterised/served member, not the
-attachment.
-
-## Use it as a library
-
-```rust
-use mailxray_core::{inspect, Policy, Verdict};
-
-let report = inspect(Some("invoice.pdf"), &bytes, &Policy::default());
-if report.verdict == Verdict::Blocked {
-    // refuse at SMTP time
-}
-```
-
-The mail path can call the daemon over HTTP or link the crate directly — the
-report is the same struct either way.
-
 ---
 
 ## Guarantees and limits
@@ -273,73 +366,36 @@ report is the same struct either way.
 **Guarantees**
 
 - parsers are memory-safe Rust; there is no C in the inspection path;
-- every loop is bounded: a malicious file cannot make one attachment cost
+- every loop is bounded — a malicious file cannot make one attachment cost
   unbounded time or memory;
 - caps surface as a verdict with a reason, never as a silent "clean";
-- no execution, no rendering, no network, no credentials.
+- no execution, no rendering, no credentials, no network from inspected content.
 
-**Limits — read these before trusting it**
+**Limits — read before trusting it**
 
-- mailxray describes *structure and intent*, not identity. It cannot tell you that
-  a clean-looking ZIP contains a novel payload; it tells you there is an
-  executable inside it, which is usually the same decision.
-- RAR/7z/bzip2/xz/zstd are recognised but not listed until tier 1 exists; those
-  reports say `container-not-listed` rather than pretending otherwise.
-- Encrypted archives and encrypted PDFs cannot be inspected; policy refuses them.
-- A determined attacker can build a payload with no distinguishing structure.
-  mailxray raises the cost of the cheap attacks that make up almost all mail
-  abuse; it is not a substitute for endpoint protection.
+- it describes *structure and intent*, not identity: it cannot tell you a
+  clean-looking ZIP holds a novel payload, only that there is an executable
+  inside it — which is usually the same decision;
+- bzip2/xz/zstd are recognised but not listed; those reports say so;
+- encrypted archives and encrypted PDFs cannot be inspected — policy refuses them;
+- a determined attacker can build a payload with no distinguishing structure.
+  This raises the cost of the cheap attacks that make up almost all mail abuse;
+  it is not endpoint protection.
 
 ---
 
-## Roadmap
+## Status and roadmap
 
-- [x] **Tier 1 handlers** — RAR/7z listing and single-member extraction via
-      7-Zip inside a bwrap sandbox (no network, read-only system, timeout, output
-      cap).
-- [ ] **poppler/libarchive handlers** — PDF text extraction, and formats 7-Zip
-      does not cover.
-- [ ] **Milter integration** — call `/inspect` from the SMTP path, annotate every
-      attachment, refuse blocked ones at DATA.
-- [ ] **Nesting policy per format**, and `path` on each entry so nested members
-      say which container they came from.
-- [ ] Optional digest lookup (VirusTotal / hash feeds) as a *separate* step that
-      never touches the sandbox.
+`0.2.0` — tier 0 inspection, tier 1 sandbox with 7-Zip, four endpoints, reference
+UI renderer, 23 tests, clippy clean.
 
-## Using it from any webmail
-
-The service speaks JSON only — it never returns HTML, because a webmail that
-embedded such HTML would inherit the service's XSS surface. To make that JSON
-pleasant without coupling, the repository ships a reference renderer:
-
-```
-web/mailxray-card.js    MailxrayCard.render(report, { entryUrl }) -> HTMLElement
-web/mailxray-card.css
-web/demo.html           open it next to a running daemon to see the output
-```
-
-```js
-fetch("/mailxray/inspect?name=" + encodeURIComponent(name), { method: "POST", body: blob })
-  .then((r) => r.json())
-  .then((report) => {
-    panel.append(MailxrayCard.render(report, {
-      entryUrl: (member) =>
-        "https://attach.example.com/entry?path=" + encodeURIComponent(member),
-    }));
-  });
-```
-
-It is built with DOM nodes and `textContent` — no `innerHTML`, no `eval` — so a
-member named `<img src=x onerror=alert(1)>.zip` renders as text. Point
-`entryUrl` at an **isolated origin** (not the webmail's), without cookies, and
-the `open` link becomes a preview the user can click inside your own wrapper.
-
-## Status
-
-`0.2.0` — tier 0 inspection (type detection, archive listing, PDF active
-content, OOXML/OLE2 structure, policy engine), tier 1 sandbox with 7-Zip for
-RAR/7z listing and member extraction, HTTP daemon with `/inspect`, `/entry`,
-`/report`, and a reference UI renderer. 23 tests, clippy clean.
+- [x] RAR/7z listing and member extraction in a sandbox
+- [ ] **milter** for Stalwart/Postfix that calls `/inspect` at `DATA` and returns
+      `5.7.1` on blocked (and `451` when the service is down)
+- [ ] `path` per entry, so nested members say which container they came from
+- [ ] poppler/libarchive handlers (PDF text extraction, formats 7-Zip misses)
+- [ ] optional digest lookup (VirusTotal / hash feeds) as a separate step that
+      never touches the sandbox
 
 ---
 
