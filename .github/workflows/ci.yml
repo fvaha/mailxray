@@ -1,0 +1,45 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            target: x86_64-unknown-linux-musl
+          - os: macos-14
+            target: aarch64-apple-darwin
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Toolchain
+        run: |
+          rustup toolchain install stable --profile minimal --component clippy
+          rustup default stable
+
+      - name: Test
+        run: cargo test --workspace --all-targets
+
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Build release (static on Linux)
+        run: |
+          rustup target add ${{ matrix.target }}
+          if [ "${{ matrix.target }}" = "x86_64-unknown-linux-musl" ]; then
+            sudo apt-get update -qq && sudo apt-get install -y -qq musl-tools
+            export CC_x86_64_unknown_linux_musl=musl-gcc
+          fi
+          cargo build --release --workspace --target ${{ matrix.target }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mailxrayd-${{ matrix.target }}
+          path: target/${{ matrix.target }}/release/mailxrayd
+          if-no-files-found: warn
