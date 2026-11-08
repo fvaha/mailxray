@@ -1,6 +1,6 @@
 //! Legacy Office (OLE2/CFB) inspection: .doc/.xls/.ppt/.msg.
 //!
-//! We do not try to read the document text — that needs a format-specific parser
+//! We do not try to read the document text: that needs a format-specific parser
 //! and is where the risk lives. What matters for mail is: does it carry a macro
 //! project, and does it carry embedded objects.
 

@@ -1,4 +1,4 @@
-//! The report contract. Field names are part of the public JSON API — see SPEC.md.
+//! The report contract. Field names are part of the public JSON API; see SPEC.md.
 
 use serde::Serialize;
 
@@ -44,7 +44,7 @@ impl Reason {
 #[derive(Debug, Clone, Serialize)]
 pub struct Report {
     pub schema: u32,
-    /// BLAKE3 of the decoded attachment bytes — the cache key everywhere.
+    /// BLAKE3 of the decoded attachment bytes: the cache key everywhere.
     pub hash: String,
     pub sha256: String,
     pub size: u64,

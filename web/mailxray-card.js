@@ -1,5 +1,5 @@
 /*!
- * mailxray-card.js — reference renderer for a mailxray report.
+ * mailxray-card.js: reference renderer for a mailxray report.
  *
  * Drop-in for any webmail: no framework, no eval, no innerHTML. Everything is
  * built with DOM nodes and textContent, so an attachment called
@@ -36,7 +36,7 @@
     const wrap = el("ul", "mx-reasons");
     for (const r of list) {
       const li = el("li", "mx-reason mx-reason--" + (r.severity || "info"));
-      li.append(el("code", "mx-code", r.code), document.createTextNode(" — " + (r.detail || "")));
+      li.append(el("code", "mx-code", r.code), document.createTextNode(": " + (r.detail || "")));
       wrap.append(li);
     }
     return wrap;
@@ -170,7 +170,7 @@
     meta.append(
       el("span", null, report.real_type),
       el("span", null, formatSize(report.size)),
-      el("span", "mx-hash", report.sha256 ? report.sha256.slice(0, 16) + "…" : "")
+      el("span", "mx-hash", report.sha256 ? report.sha256.slice(0, 16) + "..." : "")
     );
     if (report.type_mismatch) {
       meta.append(el("span", "mx-flag mx-flag--warn", "type mismatch"));

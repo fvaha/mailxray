@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (c) 2026 Vahid
-//! rendgen-core — inspection of untrusted attachments without opening them.
+//! mailxray-core: inspection of untrusted attachments without opening them.
 //!
 //! Everything here is tier 0: memory-safe parsers, bounded work, no rendering,
 //! no network, no execution. The output is a structural report and a verdict.

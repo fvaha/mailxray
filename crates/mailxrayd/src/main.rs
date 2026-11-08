@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (c) 2026 Vahid
 
-//! mailxrayd — HTTP front end for mailxray-core.
+//! mailxrayd: HTTP front end for mailxray-core.
 //!
-//!   POST /inspect?name=<filename>          body = attachment bytes → report
-//!   POST /entry?path=<member>              body = archive bytes   → one member
+//!   POST /inspect?name=<filename>          body = attachment bytes, returns a report
+//!   POST /entry?path=<member>              body = archive bytes, returns one member
 //!   GET  /report/{blake3}                  cached report
 //!   GET  /health
 //!
@@ -181,7 +181,7 @@ async fn enrich(app: &App, bytes: &[u8], report: &mut mailxray_core::Report) {
 ///
 /// The caller sends the archive bytes it already has (the webmail has the blob
 /// from its mail server), so the daemon keeps no archive store. Only inert
-/// classes are returned — image, PDF, text, audio, video — decided by magic
+/// classes are returned (image, PDF, text, audio, video), decided by magic
 /// bytes, never by the member's name.
 async fn entry(State(app): State<Arc<App>>, Query(q): Query<EntryQuery>, body: Bytes) -> Response {
     if let Err(msg) = validate_member_path(&q.path) {

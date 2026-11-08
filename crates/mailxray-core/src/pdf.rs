@@ -1,7 +1,7 @@
 //! PDF active-content inspection.
 //!
-//! Two passes: the object graph (cheap, catches most), and — when `deep_pdf` is
-//! on — every stream decompressed and searched for active content, because a
+//! Two passes: the object graph (cheap, catches most), and, when `deep_pdf` is
+//! on, every stream decompressed and searched for active content, because a
 //! `/JavaScript` hidden inside a Flate stream is invisible to pass one.
 
 use crate::policy::Policy;

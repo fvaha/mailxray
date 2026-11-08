@@ -1,4 +1,4 @@
-# mailxray — the report contract
+# mailxray: the report contract
 
 Version 1. This file is the interface between the mail path (milter) and the
 webmail (IRIS). Field names and reason codes are part of the API; changing them
@@ -26,14 +26,14 @@ mailxray displays in detail, because a tree is what a user needs to decide.
 
 ```
 POST /inspect?name=<filename>        body: raw attachment bytes (max 50 MB)
-POST /entry?path=<member>            body: raw archive bytes → one member
+POST /entry?path=<member>            body: raw archive bytes, returns one member
 GET  /report/{blake3-hex}            cached report
 GET  /health
 ```
 
 `POST /entry` returns the bytes of a single archive member, for a preview wrapper:
 
-- **only inert classes** are returned — `image`, `pdf`, `text`, `audio`, `video` —
+- **only inert classes** are returned (`image`, `pdf`, `text`, `audio`, `video`),
   decided by magic bytes of the extracted content, not by the member name;
   anything else is `415`;
 - members larger than **8 MB** are refused;
@@ -43,8 +43,8 @@ GET  /health
   sandbox;
 - the caller supplies the archive bytes, so the daemon stores no attachments.
 
-`POST /inspect` always answers `200` with a report — a parse failure is a report
-with `pdf-unparsed` / `zip-unparsed` / … and verdict `suspicious`, never a 500.
+`POST /inspect` always answers `200` with a report: a parse failure is a report
+with `pdf-unparsed` / `zip-unparsed` and verdict `suspicious`, never a 500.
 The report is written to the store as `<store>/{hash}.json` and `GET /report`
 reads it back, so the webmail can fetch reports without re-uploading bytes.
 
@@ -121,7 +121,7 @@ real content and to disambiguate text-ish files (`.js` is a script, not text).
 | `archive-bomb` | blocked | member ratio above `max_ratio` at size |
 | `path-traversal` | blocked | member name escapes the archive root |
 | `macro-present` | blocked*, *suspicious when `block_macro_office=false` | VBA project in OOXML/OLE2 |
-| `pdf-launch` | blocked | `/Launch` — can start a program |
+| `pdf-launch` | blocked | `/Launch` can start a program |
 | `pdf-javascript` | blocked* | JavaScript action (severity raised when it runs on open) |
 | `pdf-embedded-payload` | blocked | embedded file objects (dropper carrier) |
 | `pdf-open-action` | blocked | action fires automatically on open |
@@ -132,7 +132,7 @@ real content and to disambiguate text-ish files (`.js` is a script, not text).
 | `pdf-hidden-launch` | suspicious | `/Launch` inside a compressed stream |
 | `pdf-hidden-embedded` | suspicious | embedded-file marker inside a compressed stream |
 | `pdf-encrypted` | suspicious | encrypted; active content cannot be ruled out |
-| `pdf-partial-scan` | suspicious | decompression budget reached — **never reported clean** |
+| `pdf-partial-scan` | suspicious | decompression budget reached, **never reported clean** |
 | `pdf-links` | info | link count and distinct hosts |
 | `external-references` | suspicious | OOXML external relationship (remote template/DDE) |
 | `embedded-objects` | suspicious | OLE object embedded in a document |
