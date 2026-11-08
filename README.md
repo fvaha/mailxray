@@ -74,7 +74,8 @@ Three concrete wins:
 | Format | What you get |
 |---|---|
 | **ZIP, tar, gzip** | full entry tree, per-entry verdicts, nesting up to `max_depth`, path-traversal and zip-bomb detection |
-| **RAR, 7z, bzip2, xz, zstd** | recognised by magic; entry listing requires the external handler (tier 1, see [Roadmap](#roadmap)) |
+| **RAR, 7z** | full entry tree via 7-Zip, run inside the tier 1 sandbox (no network, read-only system, wall-clock timeout) |
+| **bzip2, xz, zstd** | recognised by magic; single-stream formats, so there is no tree to list |
 | **PDF** | pages, `/OpenAction`, `/AA`, `/Launch`, JavaScript (with a snippet of the code), embedded files, XFA, RichMedia, SubmitForm, link targets and their hosts — plus a **deep pass** that decompresses every stream and searches it for hidden active content |
 | **DOCX / XLSX / PPTX** | VBA macro project, external relationships (remote template injection / DDE), embedded OLE objects |
 | **DOC / XLS / PPT (OLE2)** | VBA project, embedded objects, stream list |
@@ -153,7 +154,7 @@ one that can do its job:
 | Tier | Mechanism | Cost (measured) | Used for |
 |---|---|---|---|
 | **0** | in-process, memory-safe Rust parsers, bounded work | **0.2–2 ms**, 5–14 MB RSS | everything implemented today: ZIP, tar, gzip, PDF, OOXML, OLE2 |
-| **1** | `bwrap` (namespaces) + Landlock (filesystem) + seccomp + cgroup `MemoryMax` + wall-clock timeout | **+3 ms** (Landlock), **+8–10 ms** (bwrap), **~0 MB RSS** | external handlers: `unrar`, `7zz`, `libarchive`, poppler |
+| **1** | `bwrap` (namespaces) + Landlock (filesystem) + seccomp + cgroup `MemoryMax` + wall-clock timeout | **+3 ms** (Landlock), **+8–10 ms** (bwrap), **~0 MB RSS** | **7-Zip: RAR/7z listing and single-member extraction (implemented)**; poppler, libarchive, LibreOffice later |
 | **2** | Firecracker microVM | **7.7 MB VMM RSS**, ~2.3 s boot | anything that renders or executes: LibreOffice, unknown binaries |
 
 <sub>Measured on Debian 13, kernel 6.12, Xeon E5-2620. A 20 000-iteration
@@ -167,13 +168,18 @@ program you put inside it.** Landlock + seccomp + namespaces + cgroup add
 effectively zero RAM and zero syscall overhead. The 51 MB was Python's `zipfile`
 unpacking 38 MB — the parser's cost, not the sandbox's.
 
-Two rules for tier 1 when it lands:
+Two rules for tier 1, as implemented in `crates/mailxrayd/src/sandbox.rs`:
 
-- **Limits are enforced from outside** (cgroup, rlimits, wall clock), never by the
+- **Limits are enforced from outside** (wall clock, output cap), never by the
   tool's own configuration.
-- **Nothing is shared** with the handler: no network namespace, no view of the
-  mail store, input as a read-only bind, output collected from a tmpfs, and the
+- **Nothing is shared** with the handler: no network namespace, read-only system
+  binds, the archive bound read-only, one private writable work dir, and the
   child dies with its parent.
+
+`MAILXRAY_SANDBOX=auto|bwrap|off` selects the mode; `auto` (the default) uses
+bwrap when it is installed and falls back to no isolation otherwise, with a
+startup line in the log saying which one is active. In production: keep it on
+bwrap, and put `MemoryMax=` on the systemd unit so the whole tree is cgroup-capped.
 
 ---
 
@@ -218,6 +224,7 @@ MAILXRAY_ADDR=127.0.0.1:8377 MAILXRAY_STORE=/var/lib/mailxray \
 
 ```
 POST /inspect?name=<filename>   body = raw attachment bytes (≤ 50 MB) → report
+POST /entry?path=<member>       body = raw archive bytes → one member (preview)
 GET  /report/{blake3}           cached report
 GET  /health
 ```
@@ -227,7 +234,23 @@ delivered to 100 recipients is inspected once and the webmail can fetch its card
 without re-uploading anything.
 
 Typical cost: **0.2–2 ms** for archives, Office and shallow PDF; **~30–80 ms** for
-a multi-megabyte PDF with the deep stream pass — once per content hash.
+a multi-megabyte PDF with the deep stream pass — once per content hash. RAR/7z
+listing goes through 7-Zip in the sandbox: **~10 ms** of sandbox overhead on top
+of the tool's own run time.
+
+### `POST /entry` — opening one member
+
+The caller sends the archive bytes it already has (a webmail has the blob from
+its mail server), plus the member path. The daemon extracts **that one member**
+inside the tier 1 sandbox and returns it only if the bytes are inert — image,
+PDF, text, audio or video, decided by magic bytes rather than by the name. An
+`invoice.png` that is really a PE is refused with `415`. Members over 8 MB are
+refused, and the path is validated (`..`, absolute paths and a leading `-` are
+rejected before anything runs).
+
+That is what makes a preview wrapper possible without ever handing the original
+file to the client: the wrapper shows a rasterised/served member, not the
+attachment.
 
 ## Use it as a library
 
@@ -271,19 +294,52 @@ report is the same struct either way.
 
 ## Roadmap
 
-- [ ] **Tier 1 handlers** — RAR, 7z, bzip2, xz, zstd entry listing via
-      `unrar`/`7zz`/`libarchive` inside a bwrap + Landlock + cgroup sandbox.
+- [x] **Tier 1 handlers** — RAR/7z listing and single-member extraction via
+      7-Zip inside a bwrap sandbox (no network, read-only system, timeout, output
+      cap).
+- [ ] **poppler/libarchive handlers** — PDF text extraction, and formats 7-Zip
+      does not cover.
 - [ ] **Milter integration** — call `/inspect` from the SMTP path, annotate every
       attachment, refuse blocked ones at DATA.
-- [ ] **Nesting policy per format**, and extraction of a single safe member
-      (image/PDF) for preview.
+- [ ] **Nesting policy per format**, and `path` on each entry so nested members
+      say which container they came from.
 - [ ] Optional digest lookup (VirusTotal / hash feeds) as a *separate* step that
       never touches the sandbox.
 
+## Using it from any webmail
+
+The service speaks JSON only — it never returns HTML, because a webmail that
+embedded such HTML would inherit the service's XSS surface. To make that JSON
+pleasant without coupling, the repository ships a reference renderer:
+
+```
+web/mailxray-card.js    MailxrayCard.render(report, { entryUrl }) -> HTMLElement
+web/mailxray-card.css
+web/demo.html           open it next to a running daemon to see the output
+```
+
+```js
+fetch("/mailxray/inspect?name=" + encodeURIComponent(name), { method: "POST", body: blob })
+  .then((r) => r.json())
+  .then((report) => {
+    panel.append(MailxrayCard.render(report, {
+      entryUrl: (member) =>
+        "https://attach.example.com/entry?path=" + encodeURIComponent(member),
+    }));
+  });
+```
+
+It is built with DOM nodes and `textContent` — no `innerHTML`, no `eval` — so a
+member named `<img src=x onerror=alert(1)>.zip` renders as text. Point
+`entryUrl` at an **isolated origin** (not the webmail's), without cookies, and
+the `open` link becomes a preview the user can click inside your own wrapper.
+
 ## Status
 
-`0.1.0` — tier 0 complete: type detection, archive listing, PDF active content,
-OOXML/OLE2 structure, policy engine, HTTP daemon, 20 tests, clippy clean.
+`0.2.0` — tier 0 inspection (type detection, archive listing, PDF active
+content, OOXML/OLE2 structure, policy engine), tier 1 sandbox with 7-Zip for
+RAR/7z listing and member extraction, HTTP daemon with `/inspect`, `/entry`,
+`/report`, and a reference UI renderer. 23 tests, clippy clean.
 
 ---
 

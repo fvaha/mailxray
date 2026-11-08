@@ -26,9 +26,22 @@ mailxray displays in detail, because a tree is what a user needs to decide.
 
 ```
 POST /inspect?name=<filename>        body: raw attachment bytes (max 50 MB)
+POST /entry?path=<member>            body: raw archive bytes → one member
 GET  /report/{blake3-hex}            cached report
 GET  /health
 ```
+
+`POST /entry` returns the bytes of a single archive member, for a preview wrapper:
+
+- **only inert classes** are returned — `image`, `pdf`, `text`, `audio`, `video` —
+  decided by magic bytes of the extracted content, not by the member name;
+  anything else is `415`;
+- members larger than **8 MB** are refused;
+- `path` is rejected if it is empty, longer than 1024 chars, absolute, starts
+  with `-`, contains `..`, `\` or NUL;
+- ZIP is extracted in-process; RAR/7z go through 7-Zip inside the tier 1
+  sandbox;
+- the caller supplies the archive bytes, so the daemon stores no attachments.
 
 `POST /inspect` always answers `200` with a report — a parse failure is a report
 with `pdf-unparsed` / `zip-unparsed` / … and verdict `suspicious`, never a 500.
@@ -124,7 +137,7 @@ real content and to disambiguate text-ish files (`.js` is a script, not text).
 | `external-references` | suspicious | OOXML external relationship (remote template/DDE) |
 | `embedded-objects` | suspicious | OLE object embedded in a document |
 | `type-mismatch` | suspicious | declared extension does not match content |
-| `container-not-listed` | suspicious | rar/7z/bzip2/xz/zstd recognised, listing needs tier 1 |
+| `container-not-listed` | suspicious | bzip2/xz/zstd recognised, no tree to list (RAR/7z are listed by the tier 1 handler, which removes this reason) |
 | `archive-entry-cap` | suspicious | entry count above `max_entries` |
 | `archive-partial-scan` | suspicious | decompression budget reached |
 | `*-unparsed` | suspicious | the format handler failed; the file was not inspected |

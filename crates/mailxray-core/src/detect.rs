@@ -293,3 +293,53 @@ mod tests {
         assert_eq!(detect_with_name(Some("dropper.js"), body), FileClass::Script);
     }
 }
+
+/// Class from the filename alone. Used for archive members listed by an external
+/// tool, where opening the entry to sniff magic bytes would cost a second pass.
+pub fn class_from_name(name: &str) -> FileClass {
+    let Some(ext) = extension(name) else {
+        return FileClass::Unknown;
+    };
+    match ext.as_str() {
+        "pdf" => FileClass::Pdf,
+        "zip" | "docx" | "xlsx" | "pptx" | "odt" | "ods" | "odp" | "jar" | "apk" | "epub" => {
+            FileClass::Zip
+        }
+        "rar" => FileClass::Rar5,
+        "7z" => FileClass::SevenZip,
+        "gz" | "tgz" => FileClass::Gzip,
+        "bz2" | "tbz2" => FileClass::Bzip2,
+        "xz" | "txz" => FileClass::Xz,
+        "zst" => FileClass::Zstd,
+        "tar" => FileClass::Tar,
+        "doc" | "xls" | "ppt" | "msg" | "vsd" => FileClass::Ole2,
+        "exe" | "dll" | "scr" | "sys" | "cpl" | "ocx" | "pif" | "com" | "msi" => FileClass::Pe,
+        "so" | "elf" => FileClass::Elf,
+        "dylib" => FileClass::MachO,
+        "iso" | "img" => FileClass::Iso,
+        "lnk" => FileClass::Lnk,
+        "html" | "htm" | "shtml" | "xhtml" => FileClass::Html,
+        "svg" => FileClass::Svg,
+        e if SCRIPT_EXTS.contains(&e) => FileClass::Script,
+        "png" | "jpg" | "jpeg" | "gif" | "webp" | "bmp" | "tif" | "tiff" | "heic" | "avif" => {
+            FileClass::Image
+        }
+        "mp3" | "ogg" | "flac" | "wav" | "m4a" => FileClass::Audio,
+        "mp4" | "mov" | "avi" | "mkv" | "webm" => FileClass::Video,
+        "txt" | "csv" | "log" | "md" | "json" | "xml" | "ics" | "vcf" => FileClass::Text,
+        _ => FileClass::Unknown,
+    }
+}
+
+#[cfg(test)]
+mod class_tests {
+    use super::*;
+
+    #[test]
+    fn class_from_extension() {
+        assert_eq!(class_from_name("a/setup.exe"), FileClass::Pe);
+        assert_eq!(class_from_name("a/photo.PNG"), FileClass::Image);
+        assert_eq!(class_from_name("a/doc.pdf"), FileClass::Pdf);
+        assert_eq!(class_from_name("a/weird.xyz"), FileClass::Unknown);
+    }
+}
