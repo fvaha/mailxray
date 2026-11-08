@@ -285,4 +285,25 @@ report is the same struct either way.
 `0.1.0` — tier 0 complete: type detection, archive listing, PDF active content,
 OOXML/OLE2 structure, policy engine, HTTP daemon, 20 tests, clippy clean.
 
-License: MIT.
+---
+
+## License
+
+**Free for personal and other noncommercial use. Commercial use requires a paid
+license.**
+
+mailxray is source-available under the
+[PolyForm Noncommercial License 1.0.0](LICENSE): you may read it, run it, modify
+it and share it for any noncommercial purpose — home mail servers, study,
+research, hobbies, and by charities, schools, public research and government
+institutions. Running it as part of a company's mail service, embedding it in a
+product, or using it to deliver paid work requires a
+[commercial license](COMMERCIAL.md).
+
+There is no copyleft and no forced publication of your changes; the only line is
+commercial versus noncommercial. See [COMMERCIAL.md](COMMERCIAL.md) for what
+counts as commercial, what a license covers, and how to get one.
+
+Contributions are accepted under the terms in [CONTRIBUTING.md](CONTRIBUTING.md).
+Earlier commits were published under MIT — see [LICENSE-CHANGE.md](LICENSE-CHANGE.md).
+Third-party components are permissively licensed: [THIRD-PARTY.md](THIRD-PARTY.md).
