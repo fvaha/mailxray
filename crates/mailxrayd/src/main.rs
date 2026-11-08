@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Vahid
 //! mailxrayd — HTTP front end for mailxray-core.
 //!
 //!   POST /inspect?name=attachment.pdf   (body = raw attachment bytes)

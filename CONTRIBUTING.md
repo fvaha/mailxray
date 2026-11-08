@@ -4,11 +4,13 @@ Thanks for looking. Two things to know before you open a pull request.
 
 ## 1. License of contributions
 
-By submitting a contribution you agree that it is licensed to the project under
-the [PolyForm Noncommercial License 1.0.0](LICENSE), **and** that you grant the
-licensor a perpetual, worldwide, royalty-free, irrevocable license to use,
-relicense and distribute your contribution under other terms, including a
-commercial license.
+**`mailxray-core` is MIT:** by submitting a change there you agree it is
+licensed under MIT, and you keep your copyright.
+
+**`mailxrayd` is AGPL-3.0-only:** by submitting a change there you agree it is
+licensed under the AGPL, **and** that you grant the licensor a perpetual,
+worldwide, royalty-free, irrevocable license to use, relicense and distribute
+your contribution under other terms, including a commercial license.
 
 Without that second part the project cannot offer a commercial license at all,
 because every contributor would hold a veto. If you are not comfortable with it,

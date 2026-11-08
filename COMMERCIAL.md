@@ -1,58 +1,62 @@
 # Commercial licensing
 
-mailxray is free for **personal and other noncommercial use** under the
-[PolyForm Noncommercial License 1.0.0](LICENSE).
+`mailxrayd` is licensed under **AGPL-3.0-only**. For most deployments that is
+free and unproblematic — but the AGPL has one obligation a closed product cannot
+meet, and that is what a commercial license removes.
 
-**Any commercial use requires a commercial license.**
+`mailxray-core` is **MIT** and never needs a commercial license.
 
-## What counts as commercial use
+## When you do **not** need one
 
-You need a commercial license if the software is used for, or in connection
-with, anything intended for or directed toward commercial advantage or monetary
-compensation. In practice that means, among others:
+- personal use, home mail servers, study, hobby projects;
+- running `mailxrayd` inside your own company for your own mail, with no
+  third-party users of the service — AGPL does not require publication for
+  private, internal use;
+- charities, schools, public research, government;
+- modifying it and running the modified version yourself, as long as users of
+  that service are offered the corresponding source (AGPL §13) — which
+  self-hosting naturally satisfies;
+- anything built on `mailxray-core` alone, in any kind of project, closed or
+  open.
 
-- running mailxray as part of a mail service, product or internal system of a
-  for-profit company;
-- embedding `mailxray-core` in a product that is sold, licensed or offered as a
-  service;
-- using it to deliver work to a client (consulting, integration, managed
-  hosting), even if the client is charged indirectly;
-- using it in development, staging or CI of any of the above — an internal test
-  environment of a company is still commercial use.
+## When you do
 
-## What stays free
+- **shipping `mailxrayd` inside a product** you distribute, where you cannot or
+  will not publish your deployment's source under the AGPL;
+- **offering `mailxrayd` as a hosted service** to third parties while keeping
+  your modifications closed — AGPL §13 requires that network users are offered
+  the corresponding source;
+- **embedding the daemon in an appliance or managed platform** whose source you
+  do not publish;
+- **OEM / rebranding**, or any case where the AGPL notice would have to be
+  stripped.
 
-- personal use, study, hobby projects, experiments, home mail servers;
-- research and testing for the benefit of public knowledge, with no anticipated
-  commercial application;
-- use by charities, educational institutions, public research organisations,
-  public safety or health organisations, environmental organisations and
-  government institutions (as defined in the license);
-- reading the source, forking it for noncommercial purposes, and filing issues.
-
-If you are unsure which side your use falls on, ask before deploying — it is a
-short conversation.
+If you can live with the AGPL, do: it is a real license for real deployments,
+not a demo.
 
 ## What a commercial license gives you
 
-- the right to use, modify and distribute mailxray in commercial contexts;
-- private integration support on request (pricing depends on scope);
-- no obligation to publish your changes;
-- terms per legal entity, covering that entity and its affiliates.
+- use, modify and distribute `mailxrayd` **without** the AGPL source-offer
+  obligation;
+- no requirement to publish your integration, your modifications, or your
+  surrounding deployment;
+- terms per legal entity, covering that entity and its affiliates;
+- optional integration support, priced by scope;
+- the choice to keep your changes private.
 
-It does **not** grant trademark rights or the right to present a derivative as
-the original project.
+It does **not** grant trademark rights, and it does not change the license of
+`mailxray-core` — that stays MIT for everybody, including your competitors.
 
 ## How to get one
 
 Open an issue titled `commercial license` in this repository, or contact the
-licensor directly. Include: legal entity, what you intend to run, rough scale
-(hosts / mailboxes / volume), and whether you need support.
+licensor directly. Include: legal entity, what you intend to run or ship, rough
+scale (hosts / mailboxes / volume / tenants), whether you need support, and why
+the AGPL does not fit.
 
-Commercial terms are agreed in writing; this page is a summary, not an offer.
+Terms are agreed in writing; this page is a summary, not an offer.
 
 ---
 
-*Nothing here is legal advice. If you need certainty, have your counsel read
-the license text in [LICENSE](LICENSE) — it is short and plain-language by
-design.*
+*Nothing here is legal advice. The license text in [LICENSE](LICENSE) is the
+authority.*

@@ -3,7 +3,7 @@ name = "mailxray-core"
 description = "Inspect untrusted attachments (PDF, Office, archives) without opening them"
 version.workspace = true
 edition.workspace = true
-license.workspace = true
+license = "MIT"
 rust-version.workspace = true
 repository.workspace = true
 

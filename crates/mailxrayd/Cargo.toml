@@ -3,7 +3,7 @@ name = "mailxrayd"
 description = "HTTP daemon exposing mailxray-core attachment inspection"
 version.workspace = true
 edition.workspace = true
-license.workspace = true
+license = "AGPL-3.0-only"
 rust-version.workspace = true
 repository.workspace = true
 

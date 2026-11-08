@@ -3,10 +3,16 @@ Copyright (c) 2026 Vahid (https://vahid.im)
 
 Required Notice: Copyright (c) 2026 Vahid (https://vahid.im)
 
-This software is licensed under the PolyForm Noncommercial License 1.0.0.
-See LICENSE for the full terms.
+Licensing is split by component (see LICENSING.md):
 
-Noncommercial use is free. Commercial use requires a commercial license.
-See COMMERCIAL.md.
+  crates/mailxray-core   MIT
+  crates/mailxrayd       AGPL-3.0-only
+  everything else        AGPL-3.0-only
 
-Third-party components keep their own licenses; see THIRD-PARTY.md.
+The full AGPL text is in LICENSE; the MIT text for the library is in
+crates/mailxray-core/LICENSE.
+
+If you cannot meet the AGPL's source-offer obligation for the daemon, a
+commercial license is available: see COMMERCIAL.md.
+
+Third-party components keep their own permissive licenses: see THIRD-PARTY.md.

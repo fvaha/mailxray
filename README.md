@@ -289,21 +289,19 @@ OOXML/OLE2 structure, policy engine, HTTP daemon, 20 tests, clippy clean.
 
 ## License
 
-**Free for personal and other noncommercial use. Commercial use requires a paid
-license.**
+**The library is MIT. The daemon is AGPL-3.0. A commercial license exists for
+deployments that cannot publish their source.**
 
-mailxray is source-available under the
-[PolyForm Noncommercial License 1.0.0](LICENSE): you may read it, run it, modify
-it and share it for any noncommercial purpose — home mail servers, study,
-research, hobbies, and by charities, schools, public research and government
-institutions. Running it as part of a company's mail service, embedding it in a
-product, or using it to deliver paid work requires a
-[commercial license](COMMERCIAL.md).
+| Component | License |
+|---|---|
+| `mailxray-core` — the inspection engine | **MIT** — embed it anywhere, closed or open |
+| `mailxrayd` — the HTTP daemon | **AGPL-3.0-only** — free to run, including inside a company; publishing your deployment's source is required only if you offer it to third parties or ship it in a product |
+| docs, CI, spec | AGPL-3.0-only |
 
-There is no copyleft and no forced publication of your changes; the only line is
-commercial versus noncommercial. See [COMMERCIAL.md](COMMERCIAL.md) for what
-counts as commercial, what a license covers, and how to get one.
-
-Contributions are accepted under the terms in [CONTRIBUTING.md](CONTRIBUTING.md).
-Earlier commits were published under MIT — see [LICENSE-CHANGE.md](LICENSE-CHANGE.md).
-Third-party components are permissively licensed: [THIRD-PARTY.md](THIRD-PARTY.md).
+This is the same shape as Stalwart, Grafana and mupdf: an open, credible core
+with a paid exception for the case where publication is unacceptable. See
+[LICENSING.md](LICENSING.md) for the reasoning, [COMMERCIAL.md](COMMERCIAL.md)
+for when a commercial license is needed, and [CONTRIBUTING.md](CONTRIBUTING.md)
+for contribution terms. Earlier commits were MIT — see
+[LICENSE-CHANGE.md](LICENSE-CHANGE.md). Third-party components are permissively
+licensed: [THIRD-PARTY.md](THIRD-PARTY.md).

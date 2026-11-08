@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 Vahid
 //! rendgen-core — inspection of untrusted attachments without opening them.
 //!
 //! Everything here is tier 0: memory-safe parsers, bounded work, no rendering,
