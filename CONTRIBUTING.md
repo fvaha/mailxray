@@ -4,17 +4,10 @@ Thanks for looking. Two things to know before you open a pull request.
 
 ## 1. License of contributions
 
-**`mailxray-core` is MIT:** by submitting a change there you agree it is
-licensed under MIT, and you keep your copyright.
-
-**`mailxrayd` is AGPL-3.0-only:** by submitting a change there you agree it is
-licensed under the AGPL, **and** that you grant the licensor a perpetual,
-worldwide, royalty-free, irrevocable license to use, relicense and distribute
-your contribution under other terms, including a commercial license.
-
-Without that second part the project cannot offer a commercial license at all,
-because every contributor would hold a veto. If you are not comfortable with it,
-an issue with a patch suggestion in prose is welcome instead.
+Contributions are accepted under **AGPL-3.0-only**, the license of the whole
+project. By submitting a change you agree to that, and you grant the licensor a
+perpetual, worldwide, royalty-free, irrevocable right to relicense your
+contribution — without it, the project cannot offer commercial licenses.
 
 ## 2. What fits the design
 

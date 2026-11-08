@@ -289,19 +289,7 @@ OOXML/OLE2 structure, policy engine, HTTP daemon, 20 tests, clippy clean.
 
 ## License
 
-**The library is MIT. The daemon is AGPL-3.0. A commercial license exists for
-deployments that cannot publish their source.**
-
-| Component | License |
-|---|---|
-| `mailxray-core` — the inspection engine | **MIT** — embed it anywhere, closed or open |
-| `mailxrayd` — the HTTP daemon | **AGPL-3.0-only** — free to run, including inside a company; publishing your deployment's source is required only if you offer it to third parties or ship it in a product |
-| docs, CI, spec | AGPL-3.0-only |
-
-This is the same shape as Stalwart, Grafana and mupdf: an open, credible core
-with a paid exception for the case where publication is unacceptable. See
-[LICENSING.md](LICENSING.md) for the reasoning, [COMMERCIAL.md](COMMERCIAL.md)
-for when a commercial license is needed, and [CONTRIBUTING.md](CONTRIBUTING.md)
-for contribution terms. Earlier commits were MIT — see
-[LICENSE-CHANGE.md](LICENSE-CHANGE.md). Third-party components are permissively
-licensed: [THIRD-PARTY.md](THIRD-PARTY.md).
+**AGPL-3.0-only** — see [LICENSE](LICENSE). Free to run, modify and self-host,
+including inside a company. If you offer it to others as a service or ship it in
+a closed product, the AGPL requires you to publish your deployment's source; if
+that does not work for you, contact the author about a commercial license.
