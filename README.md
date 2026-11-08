@@ -1,10 +1,30 @@
 # mailxray
 
-**Structural inspection of untrusted mail attachments, without opening them.**
+**Looks inside untrusted mail attachments without opening them.**
 
-Give it one attachment; it tells you what the bytes really are, what is inside
-them, and whether they should reach a mailbox. No execution, no rendering, no
-signature database, no mail access.
+One attachment goes in. This comes back:
+
+- **What the bytes really are**, decided by magic bytes and not by the filename.
+  `invoice.pdf.exe` is reported as a PE with a lying extension.
+- **What is inside an archive**: every member with its real type, size,
+  compression ratio and its own verdict, through two levels of nesting, plus
+  zip-bomb and path-traversal checks. RAR and 7z included, listed by 7-Zip
+  inside a sandbox.
+- **What a document carries**: PDF `/OpenAction`, `/Launch`, JavaScript with a
+  snippet of the code, embedded files, XFA, SubmitForm; Office macros and
+  external template links.
+- **A verdict and its reasons**: `clean`, `suspicious`, `blocked` or `partial`,
+  each reason with a stable code you can branch on.
+
+And when the user clicks a file inside an archive, `POST /entry` extracts that
+one member inside a bwrap sandbox (no network, no host filesystem, archive bound
+read-only, wall-clock timeout, output cap) and hands back only inert content:
+image, PDF or text. An executable that sat next to it in the same archive is
+refused with `415`. The user sees the file, the browser never receives the
+archive.
+
+It does not execute anything, does not render documents, needs no signature
+database, and has no access to mail.
 
 ```
 $ curl -s -X POST --data-binary @attach.zip 'localhost:8377/inspect?name=attach.zip'
